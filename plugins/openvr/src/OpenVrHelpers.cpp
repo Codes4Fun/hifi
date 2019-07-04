@@ -19,7 +19,9 @@
 #include <QtQuick/QQuickWindow>
 
 #include <PathUtils.h>
+#if defined(Q_OS_WIN32)
 #include <Windows.h>
+#endif
 #include <OffscreenUi.h>
 #include <controllers/Pose.h>
 #include <NumericalConstants.h>
@@ -198,8 +200,10 @@ void finishOpenVrKeyboardInput() {
     updateFromOpenVrKeyboardInput();
     // Simulate an enter press on the top level window to trigger the action
     if (0 == (_currentHints & Qt::ImhMultiLine)) {
-        qApp->sendEvent(offscreenUi->getWindow(), &QKeyEvent(QEvent::KeyPress, Qt::Key_Return, Qt::KeyboardModifiers(), QString("\n")));
-        qApp->sendEvent(offscreenUi->getWindow(), &QKeyEvent(QEvent::KeyRelease, Qt::Key_Return, Qt::KeyboardModifiers()));
+        auto key1 = QKeyEvent(QEvent::KeyPress, Qt::Key_Return, Qt::KeyboardModifiers(), QString("\n"));
+        auto key2 = QKeyEvent(QEvent::KeyRelease, Qt::Key_Return, Qt::KeyboardModifiers());
+        qApp->sendEvent(offscreenUi->getWindow(), &key1);
+        qApp->sendEvent(offscreenUi->getWindow(), &key2);
     }
 }
 
@@ -398,6 +402,14 @@ void showMinSpecWarning() {
     }
 
     // Needed here for PathUtils
+#if !defined(Q_OS_WIN32)
+    char cmdline[4*1024];
+    FILE *fp = fopen("/proc/self/cmdline", "r");
+    fgets(cmdline, sizeof cmdline, fp);
+    fclose(fp);
+    int __argc = 1;
+    char * __argv[1] = {cmdline};
+#endif
     QCoreApplication miniApp(__argc, __argv);
 
     vrSystem->ResetSeatedZeroPose();
@@ -478,7 +490,11 @@ bool checkMinSpecImpl() {
 }
 
 extern "C" {
-    __declspec(dllexport) int __stdcall CheckMinSpec() {
+#if defined(Q_OS_WIN32)
+     __declspec(dllexport) int __stdcall CheckMinSpec() {
+#else
+    __attribute__((visibility("default"))) int CheckMinSpec() {
+#endif
         return checkMinSpecImpl() ? 1 : 0;
     }
 }

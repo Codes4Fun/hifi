@@ -80,17 +80,17 @@ cd hifi/build
 
 Prepare makefiles:
 ```bash
-cmake -DQT_CMAKE_PREFIX_PATH=/usr/local/Qt5.10.1/5.10.1/gcc_64/lib/cmake ..
+cmake -DQT_CMAKE_PREFIX_PATH=/usr/local/Qt5.10.1/5.10.1/gcc_64/lib/cmake -DBUILD_SHARED_LIBS=ON ..
 ```
 
 Start compilation of the server and get a cup of coffee:
 ```bash
-make domain-server assignment-client
+make -j$(nproc) domain-server assignment-client
 ```
 
 To compile interface:
 ```bash
-make interface
+make -j$(nproc) interface
 ```
 
 In a server, it does not make sense to compile interface
