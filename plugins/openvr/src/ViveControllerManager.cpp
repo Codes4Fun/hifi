@@ -43,12 +43,7 @@ vr::IVRSystem* acquireOpenVrSystem();
 void releaseOpenVrSystem();
 
 static const QString OPENVR_LAYOUT = QString("OpenVrConfiguration.qml");
-static const char* CONTROLLER_MODEL_STRING = "vr_controller_05_wireless_b";
 const quint64 CALIBRATION_TIMELAPSE = 1 * USECS_PER_SECOND;
-
-static const char* MENU_PARENT = "Avatar";
-static const char* MENU_NAME = "Vive Controllers";
-static const char* MENU_PATH = "Avatar" ">" "Vive Controllers";
 
 static const int MIN_HEAD = 1;
 static const int MIN_PUCK_COUNT = 2;
@@ -112,22 +107,6 @@ static QString deviceTrackingResultToString(vr::ETrackingResult trackingResult) 
         return iterator->second;
     }
     return result;
-}
-
-static glm::mat4 calculateResetMat() {
-    auto chaperone = vr::VRChaperone();
-    if (chaperone) {
-        float const UI_RADIUS = 1.0f;
-        float const UI_HEIGHT = 1.6f;
-        float const UI_Z_OFFSET = 0.5;
-
-        float xSize, zSize;
-        chaperone->GetPlayAreaSize(&xSize, &zSize);
-        glm::vec3 uiPos(0.0f, UI_HEIGHT, UI_RADIUS - (0.5f * zSize) - UI_Z_OFFSET);
-
-        return glm::inverse(createMatFromQuatAndPos(glm::quat(), uiPos));
-    }
-    return glm::mat4();
 }
 
 static QString outOfRangeDataStrategyToString(ViveControllerManager::OutOfRangeDataStrategy strategy) {
@@ -370,7 +349,7 @@ void ViveControllerManager::InputDevice::update(float deltaTime, const controlle
     handleHandController(deltaTime, rightHandDeviceIndex, inputCalibrationData, false);
 
     // collect poses for all generic trackers
-    for (int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+    for (uint32_t i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
         handleTrackedObject(i, inputCalibrationData);
         handleHmd(i, inputCalibrationData);
     }
@@ -445,8 +424,8 @@ void ViveControllerManager::InputDevice::configureCalibrationSettings(const QJso
                 bool overrideHead = headObject["override"].toBool();
                 if (overrideHead) {
                     _headConfig = HeadConfig::Puck;
-                    _headPuckYOffset = headObject["Y"].toDouble() * CM_TO_M;
-                    _headPuckZOffset = headObject["Z"].toDouble() * CM_TO_M;
+                    _headPuckYOffset = (float)headObject["Y"].toDouble() * CM_TO_M;
+                    _headPuckZOffset = (float)headObject["Z"].toDouble() * CM_TO_M;
                 } else {
                     _headConfig = HeadConfig::HMD;
                 }
@@ -455,8 +434,8 @@ void ViveControllerManager::InputDevice::configureCalibrationSettings(const QJso
                 bool overrideHands = handsObject["override"].toBool();
                 if (overrideHands) {
                     _handConfig = HandConfig::Pucks;
-                    _handPuckYOffset = handsObject["Y"].toDouble() * CM_TO_M;
-                    _handPuckZOffset = handsObject["Z"].toDouble() * CM_TO_M;
+                    _handPuckYOffset = (float)handsObject["Y"].toDouble() * CM_TO_M;
+                    _handPuckZOffset = (float)handsObject["Z"].toDouble() * CM_TO_M;
                 } else {
                     _handConfig = HandConfig::HandController;
                 }
@@ -490,8 +469,8 @@ QJsonObject ViveControllerManager::InputDevice::configurationSettings() {
     configurationSettings["HMDHead"] = (_headConfig == HeadConfig::HMD);
     configurationSettings["handController"] = (_handConfig == HandConfig::HandController);
     configurationSettings["puckCount"] = (int)_validTrackedObjects.size();
-    configurationSettings["armCircumference"] = (double)_armCircumference * M_TO_CM;
-    configurationSettings["shoulderWidth"] = (double)_shoulderWidth * M_TO_CM;
+    configurationSettings["armCircumference"] = (double)(_armCircumference * M_TO_CM);
+    configurationSettings["shoulderWidth"] = (double)(_shoulderWidth * M_TO_CM);
     configurationSettings["outOfRangeDataStrategy"] = outOfRangeDataStrategyToString(_outOfRangeDataStrategy);
     return configurationSettings;
 }
@@ -708,8 +687,6 @@ bool ViveControllerManager::InputDevice::configureHead(const glm::mat4& defaultT
 bool ViveControllerManager::InputDevice::configureBody(const glm::mat4& defaultToReferenceMat, const controller::InputCalibrationData& inputCalibration) {
     std::sort(_validTrackedObjects.begin(), _validTrackedObjects.end(), sortPucksYPosition);
     int puckCount = (int)_validTrackedObjects.size();
-    glm::vec3 headXAxis = getReferenceHeadXAxis(defaultToReferenceMat, inputCalibration.defaultHeadMat);
-    glm::vec3 headPosition = getReferenceHeadPosition(defaultToReferenceMat, inputCalibration.defaultHeadMat);
     if (_config == Config::None) {
         return true;
     } else if (_config == Config::Feet && puckCount >= MIN_PUCK_COUNT) {
@@ -807,8 +784,6 @@ controller::Pose ViveControllerManager::InputDevice::addOffsetToPuckPose(const c
 }
 
 void ViveControllerManager::InputDevice::handleHmd(uint32_t deviceIndex, const controller::InputCalibrationData& inputCalibrationData) {
-     uint32_t poseIndex = controller::TRACKED_OBJECT_00 + deviceIndex;
-
      if (_system->IsTrackedDeviceConnected(deviceIndex) &&
          _system->GetTrackedDeviceClass(deviceIndex) == vr::TrackedDeviceClass_HMD &&
          _nextSimPoseData.vrPoses[deviceIndex].bPoseIsValid) {
